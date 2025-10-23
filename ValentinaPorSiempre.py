@@ -5,17 +5,18 @@ from openpyxl import load_workbook
 from openpyxl.styles import Font, Alignment, PatternFill
 from pathlib import Path
 import base64
-
 from supabase import create_client
 from dotenv import load_dotenv
 import os
 
-load_dotenv()  # Load from .env
+# ==========================================================
+#                 LOAD ENVIRONMENT VARIABLES
+# ==========================================================
+load_dotenv()
 
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+SUPABASE_URL = os.getenv("SUPABASE_URL", "https://uumezwowrtumbonsotyc.supabase.co")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV1bWV6d293cnR1bWJvbnNvdHljIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjExNTk1MzUsImV4cCI6MjA3NjczNTUzNX0.dZGdfqa7BuYH6_W3yqirn8DsuEoffnyBm1qoLU-K0A0")
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-
 
 # ==========================================================
 #                 PAGE CONFIGURATION
@@ -25,13 +26,6 @@ st.set_page_config(
     page_icon="VxS_logo.png",
     layout="wide"
 )
-
-# ==========================================================
-#                 SUPABASE CONNECTION
-# ==========================================================
-SUPABASE_URL = "https://uumezwowrtumbonsotyc.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV1bWV6d293cnR1bWJvbnNvdHljIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjExNTk1MzUsImV4cCI6MjA3NjczNTUzNX0.dZGdfqa7BuYH6_W3yqirn8DsuEoffnyBm1qoLU-K0A0"
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # ==========================================================
 #               LAST EDIT TRACKING HELPERS
@@ -141,7 +135,6 @@ def style_excel(df, filename):
             df[col] = pd.to_datetime(df[col], errors='coerce').dt.date
 
     df.to_excel(filename, index=False)
-
     wb = load_workbook(filename)
     ws = wb.active
 
@@ -220,6 +213,7 @@ if st.session_state.authenticated:
                     "cuidados_paliativos": cuidados_paliativos
                 }
                 supabase.table("pacientes").insert(data).execute()
+                update_last_edit(st.session_state.user_name)
                 st.success(f"✅ Paciente agregado exitosamente por {st.session_state.user_name}.")
 
     # ---------------- VIEW PATIENTS ----------------
@@ -256,7 +250,6 @@ if st.session_state.authenticated:
     # ---------------- BIRTHDAYS ----------------
     elif page == "🎂 Cumpleaños":
         st.subheader("🎉 Lista de cumpleaños del mes")
-
         query = supabase.table("pacientes").select("*").neq("estado", "fallecido").execute()
         df = pd.DataFrame(query.data)
         if not df.empty:
@@ -268,22 +261,14 @@ if st.session_state.authenticated:
         else:
             st.info("No hay cumpleaños este mes.")
 
-    # ---------------- LOGOUT / CLOSE APP ----------------
-    if st.sidebar.button("🚪 Cerrar aplicación"):
-        update_last_edit(st.session_state.user_name)
-        st.success(f"Aplicación cerrada correctamente por {st.session_state.user_name}.")
-        st.session_state.authenticated = False
-        st.stop()
-
     # ---------------- FOOTER ----------------
-    if st.session_state.authenticated:
-        last_user, last_time = get_last_edit()
-        if last_user and last_time:
-            try:
-                formatted_time = datetime.fromisoformat(last_time).strftime('%d/%m/%Y %H:%M')
-            except Exception:
-                formatted_time = last_time
-            st.sidebar.markdown(
-                f"<div class='bottom-left'>Última edición por <b>{last_user}</b> el {formatted_time}</div>",
-                unsafe_allow_html=True
-            )
+    last_user, last_time = get_last_edit()
+    if last_user and last_time:
+        try:
+            formatted_time = datetime.fromisoformat(last_time).strftime('%d/%m/%Y %H:%M')
+        except Exception:
+            formatted_time = last_time
+        st.sidebar.markdown(
+            f"<div class='bottom-left'>Última edición por <b>{last_user}</b> el {formatted_time}</div>",
+            unsafe_allow_html=True
+        )
