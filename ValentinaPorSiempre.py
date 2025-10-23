@@ -110,7 +110,7 @@ st.markdown(f"""
         margin-bottom: 15px;
     }}
     .corner-image {{
-        position: fixed; top: 15px; right: 25px;
+        position: fixed; top: 80px; right: 25px;
         width: 90px; border-radius: 50%;
         box-shadow: 0px 4px 10px rgba(0,0,0,0.2);
         z-index: 999;
