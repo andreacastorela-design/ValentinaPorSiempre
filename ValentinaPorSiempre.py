@@ -225,11 +225,11 @@ if st.session_state.authenticated:
         st.markdown("**Filtrar por estado:**")
         col1, col2, col3 = st.columns(3)
         with col1:
-            filtro_activo = st.checkbox("🟢 Activo", value=True)
+            filtro_activo = st.checkbox("Activo", value=True)
         with col2:
-            filtro_vigilancia = st.checkbox("🟡 Vigilancia", value=False)
+            filtro_vigilancia = st.checkbox("Vigilancia", value=False)
         with col3:
-            filtro_fallecido = st.checkbox("⚫ Fallecido", value=False)
+            filtro_fallecido = st.checkbox("Fallecido", value=False)
 
         search = st.text_input("🔍 Buscar paciente por nombre o diagnóstico")
 
