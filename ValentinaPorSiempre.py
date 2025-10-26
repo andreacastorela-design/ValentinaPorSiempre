@@ -218,11 +218,33 @@ if st.session_state.authenticated:
 
     # ---------------- VIEW PATIENTS ----------------
     elif page == "📋 Ver Pacientes":
+        
         st.subheader("❤️‍🩹 Lista de pacientes")
-        estado_filtro = st.selectbox("Filtrar por estado", ["activo", "vigilancia", "fallecido"])
+
+        # --- Multiselect filters ---
+        st.markdown("**Filtrar por estado:**")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            filtro_activo = st.checkbox("🟢 Activo", value=True)
+        with col2:
+            filtro_vigilancia = st.checkbox("🟡 Vigilancia", value=False)
+        with col3:
+            filtro_fallecido = st.checkbox("⚫ Fallecido", value=False)
+
         search = st.text_input("🔍 Buscar paciente por nombre o diagnóstico")
 
-        query = supabase.table("pacientes").select("*").eq("estado", estado_filtro).execute()
+        # Build filter list dynamically
+        selected_estados = []
+        if filtro_activo: selected_estados.append("activo")
+        if filtro_vigilancia: selected_estados.append("vigilancia")
+        if filtro_fallecido: selected_estados.append("fallecido")
+
+        if not selected_estados:
+            st.info("Selecciona al menos un estado para mostrar los pacientes.")
+            st.stop()
+
+        # --- Query Supabase for selected states ---
+        query = supabase.table("pacientes").select("*").in_("estado", selected_estados).execute()
         df = pd.DataFrame(query.data)
 
         if not df.empty:
