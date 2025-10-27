@@ -300,6 +300,9 @@ if st.session_state.authenticated:
 
         query = supabase.table("pacientes").select("*").in_("estado", selected_estados).execute()
         df = pd.DataFrame(query.data)
+        if not df.empty and "id" in df.columns:
+            df = df.sort_values(by="id", ascending=True).reset_index(drop=True)
+
         if not df.empty:
             if search:
                 df = df[df["nombre"].str.contains(search, case=False, na=False) |
