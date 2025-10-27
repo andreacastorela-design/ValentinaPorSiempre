@@ -134,12 +134,6 @@ st.markdown(f"""
         background-color: rgba(255,255,255,0.8);
         padding: 5px 10px; border-radius: 8px;
     }}
-    /* Auto-wrap table text */
-    [data-testid="stDataFrame"] div[role="gridcell"] {{
-        white-space: normal !important;
-        overflow-wrap: anywhere !important;
-        word-break: break-word !important;
-    }}
     </style>
     {'<img src="data:image/png;base64,' + logo_b64 + '" class="corner-image">' if logo_b64 else ''}
 """, unsafe_allow_html=True)
@@ -159,11 +153,9 @@ def style_excel(df, filename):
     for col in ["fecha_nacimiento", "fecha_ultimo_apoyo"]:
         if col in df.columns:
             df[col] = pd.to_datetime(df[col], errors='coerce').dt.date
-
     df.to_excel(filename, index=False)
     wb = load_workbook(filename)
     ws = wb.active
-
     header_font = Font(bold=True, color="FFFFFF")
     header_fill = PatternFill("solid", fgColor="ff8330")
     header_alignment = Alignment(horizontal="center", vertical="center")
@@ -172,20 +164,6 @@ def style_excel(df, filename):
         cell.fill = header_fill
         cell.alignment = header_alignment
     ws.freeze_panes = "A2"
-
-    paliativos_fill = PatternFill("solid", fgColor="FFAB66")
-    paliativos_col = None
-    for idx, cell in enumerate(ws[1], start=1):
-        if cell.value == "cuidados_paliativos":
-            paliativos_col = idx
-            break
-
-    if paliativos_col:
-        for row in ws.iter_rows(min_row=2, max_row=ws.max_row):
-            if row[paliativos_col - 1].value in (1, True, "1", "true", "True"):
-                for cell in row:
-                    cell.fill = paliativos_fill
-
     wb.save(filename)
 
 # ==========================================================
@@ -194,7 +172,7 @@ def style_excel(df, filename):
 if st.session_state.authenticated:
     page = st.sidebar.radio(
         "Navegación",
-        ["➕ Agregar Paciente", "📋 Ver Pacientes", "🎂 Cumpleaños"]
+        ["➕ Agregar Paciente", "📋 Ver / Editar Pacientes", "🎂 Cumpleaños"]
     )
 
     # ---------------- ADD PATIENT ----------------
@@ -238,114 +216,72 @@ if st.session_state.authenticated:
                 update_last_edit(st.session_state.user_name)
                 st.success(f"✅ Paciente agregado exitosamente por {st.session_state.user_name}.")
 
-    # ---------------- VIEW/EDIT/DELETE PATIENTS ----------------
-    elif page == "📋 Ver Pacientes":
+    # ---------------- VIEW / EDIT / DELETE ----------------
+    elif page == "📋 Ver / Editar Pacientes":
         st.subheader("❤️‍🩹 Lista de pacientes")
 
-        col1, col2, col3 = st.columns(3)
-        with col1: filtro_activo = st.checkbox("Activo", value=True)
-        with col2: filtro_vigilancia = st.checkbox("Vigilancia", value=False)
-        with col3: filtro_fallecido = st.checkbox("Fallecido", value=False)
-        search = st.text_input("🔍 Buscar paciente por nombre o diagnóstico")
-
-        selected_estados = []
-        if filtro_activo: selected_estados.append("activo")
-        if filtro_vigilancia: selected_estados.append("vigilancia")
-        if filtro_fallecido: selected_estados.append("fallecido")
-        if not selected_estados:
-            st.info("Selecciona al menos un estado.")
-            st.stop()
-
-        query = supabase.table("pacientes").select("*").in_("estado", selected_estados).execute()
+        query = supabase.table("pacientes").select("*").execute()
         df = pd.DataFrame(query.data)
         if not df.empty and "id" in df.columns:
             df = df.sort_values(by="id", ascending=True).reset_index(drop=True)
-
-        if not df.empty:
-            if search:
-                df = df[df["nombre"].str.contains(search, case=False, na=False) |
-                        df["diagnostico"].str.contains(search, case=False, na=False)]
-            df["fecha_nacimiento"] = pd.to_datetime(df["fecha_nacimiento"], errors="coerce").dt.date
             df["Edad"] = df["fecha_nacimiento"].apply(calculate_age)
 
-            def highlight_paliativos(row):
-                color = "#FFAB66" if row["cuidados_paliativos"] in [1, True, "1", "true", "True"] else ""
-                return [f"background-color: {color}"] * len(row)
+            st.data_editor(
+                df,
+                column_config={
+                    "nombre": st.column_config.TextColumn("Nombre", width="medium"),
+                    "diagnostico": st.column_config.TextColumn("Diagnóstico", width="large"),
+                    "notas": st.column_config.TextColumn("Notas", width="large"),
+                },
+                hide_index=True,
+                use_container_width=True,
+                disabled=True
+            )
 
-            st.dataframe(df.style.apply(highlight_paliativos, axis=1), use_container_width=True)
+            # --- EDIT SECTION ---
+            selected_id = st.selectbox("Selecciona ID del paciente para editar", df["id"].tolist())
+            patient_data = df[df["id"] == selected_id].iloc[0]
 
-            st.markdown("### ✏️ Editar o eliminar paciente")
-            selected_id = st.number_input("ID del paciente", min_value=1, step=1)
+            with st.form("edit_patient_form"):
+                nombre_tutor = st.text_input("Nombre del tutor", value=patient_data["nombre_tutor"])
+                diagnostico = st.text_input("Diagnóstico", value=patient_data["diagnostico"])
+                hospital = st.text_input("Hospital", value=patient_data["hospital"])
+                notas = st.text_area("Notas", value=patient_data["notas"])
+                estado = st.selectbox("Estado del paciente", ["activo", "vigilancia", "fallecido"],
+                                      index=["activo", "vigilancia", "fallecido"].index(patient_data["estado"]))
+                submitted_edit = st.form_submit_button("💾 Guardar cambios")
 
-            if selected_id in df["id"].values:
-                patient_data = df[df["id"] == selected_id].iloc[0]
-
-                with st.form("edit_patient_form"):
-                    nombre_tutor = st.text_input("Nombre del tutor", value=patient_data["nombre_tutor"])
-                    diagnostico = st.text_input("Diagnóstico", value=patient_data["diagnostico"])
-                    etapa_tratamiento = st.selectbox(
-                        "Etapa del tratamiento",
-                        ["Diagnóstico inicial", "En tratamiento", "En vigilancia", "Cuidados paliativos"],
-                        index=["Diagnóstico inicial", "En tratamiento", "En vigilancia", "Cuidados paliativos"].index(patient_data["etapa_tratamiento"])
-                    )
-                    hospital = st.text_input("Hospital", value=patient_data["hospital"])
-                    estado_origen = st.text_input("Estado de origen", value=patient_data["estado_origen"])
-                    telefono_contacto = st.text_input("Celular de contacto", value=patient_data["telefono_contacto"])
-                    apoyos_entregados = st.text_input("Apoyos entregados", value=patient_data["apoyos_entregados"])
-                    notas = st.text_area("Notas", value=patient_data["notas"])
-                    estado = st.selectbox("Estado del paciente", ["activo", "vigilancia", "fallecido"],
-                                          index=["activo", "vigilancia", "fallecido"].index(patient_data["estado"]))
-                    cuidados_paliativos = st.checkbox("¿Está en cuidados paliativos?", value=patient_data["cuidados_paliativos"])
-                    submitted_edit = st.form_submit_button("💾 Guardar cambios")
-
-                    if submitted_edit:
-                        update_data = {
-                            "nombre_tutor": nombre_tutor,
-                            "diagnostico": diagnostico,
-                            "etapa_tratamiento": etapa_tratamiento,
-                            "hospital": hospital,
-                            "estado_origen": estado_origen,
-                            "telefono_contacto": telefono_contacto,
-                            "apoyos_entregados": apoyos_entregados,
-                            "notas": notas,
-                            "estado": estado,
-                            "cuidados_paliativos": cuidados_paliativos
-                        }
-                        supabase.table("pacientes").update(update_data).eq("id", selected_id).execute()
-                        update_last_edit(st.session_state.user_name)
-                        st.success("✅ Cambios guardados correctamente.")
-                        st.rerun()
-
-                # --- Deletion Confirmation ---
-                if st.button("🗑️ Eliminar paciente seleccionado"):
-                    st.session_state.delete_id = selected_id
-                    st.session_state.confirm_delete = True
+                if submitted_edit:
+                    update_data = {
+                        "nombre_tutor": nombre_tutor,
+                        "diagnostico": diagnostico,
+                        "hospital": hospital,
+                        "notas": notas,
+                        "estado": estado
+                    }
+                    supabase.table("pacientes").update(update_data).eq("id", selected_id).execute()
+                    update_last_edit(st.session_state.user_name)
+                    st.success("✅ Cambios guardados correctamente.")
                     st.rerun()
 
-            if st.session_state.get("confirm_delete"):
-                del_id = st.session_state.delete_id
-                st.warning(f"¿Estás seguro de que deseas eliminar al paciente con ID {del_id}?")
-                col_a, col_b = st.columns(2)
-                with col_a:
-                    if st.button("✅ Confirmar eliminación"):
-                        supabase.table("pacientes").delete().eq("id", del_id).execute()
-                        update_last_edit(st.session_state.user_name)
-                        st.success(f"🗑️ Paciente con ID {del_id} eliminado correctamente.")
-                        st.session_state.confirm_delete = False
-                        st.rerun()
-                with col_b:
-                    if st.button("❌ Cancelar"):
-                        st.session_state.confirm_delete = False
-                        st.info("Eliminación cancelada.")
+            # --- DELETE SECTION ---
+            delete_id = st.number_input("🗑️ ID del paciente a eliminar", min_value=0, step=1)
+            if st.button("Confirmar eliminación"):
+                confirm = st.warning(f"¿Estás seguro de eliminar el paciente con ID {delete_id}? Esta acción es irreversible.")
+                if st.button("✅ Sí, eliminar permanentemente"):
+                    supabase.table("pacientes").delete().eq("id", delete_id).execute()
+                    update_last_edit(st.session_state.user_name)
+                    st.success(f"🗑️ Paciente con ID {delete_id} eliminado correctamente.")
+                    st.rerun()
 
+            # --- EXPORT ---
             if st.button("📥 Exportar a Excel"):
                 filename = "pacientes_valentina.xlsx"
                 style_excel(df, filename)
                 with open(filename, "rb") as file:
                     st.download_button("Descargar archivo Excel", data=file, file_name=filename, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
         else:
-            st.info("No hay pacientes registrados con ese estado.")
+            st.info("No hay pacientes registrados.")
 
     # ---------------- BIRTHDAYS ----------------
     elif page == "🎂 Cumpleaños":
