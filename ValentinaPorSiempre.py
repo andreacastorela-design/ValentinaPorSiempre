@@ -141,7 +141,6 @@ def style_excel(df, filename):
     wb = load_workbook(filename)
     ws = wb.active
 
-    # Header style
     header_font = Font(bold=True, color="FFFFFF")
     header_fill = PatternFill("solid", fgColor="ff8330")
     header_alignment = Alignment(horizontal="center", vertical="center")
@@ -151,7 +150,6 @@ def style_excel(df, filename):
         cell.alignment = header_alignment
     ws.freeze_panes = "A2"
 
-    # Highlight palliative care rows
     paliativos_fill = PatternFill("solid", fgColor="fbc851")
     paliativos_col = None
     for idx, cell in enumerate(ws[1], start=1):
@@ -223,7 +221,6 @@ if st.session_state.authenticated:
     elif page == "📋 Ver Pacientes":
         st.subheader("❤️‍🩹 Lista de pacientes")
 
-        # --- Multiselect filters ---
         st.markdown("**Filtrar por estado:**")
         col1, col2, col3 = st.columns(3)
         with col1:
@@ -235,7 +232,6 @@ if st.session_state.authenticated:
 
         search = st.text_input("🔍 Buscar paciente por nombre o diagnóstico")
 
-        # Build filter list dynamically
         selected_estados = []
         if filtro_activo: selected_estados.append("activo")
         if filtro_vigilancia: selected_estados.append("vigilancia")
@@ -245,7 +241,6 @@ if st.session_state.authenticated:
             st.info("Selecciona al menos un estado para mostrar los pacientes.")
             st.stop()
 
-        # --- Query Supabase for selected states ---
         query = supabase.table("pacientes").select("*").in_("estado", selected_estados).execute()
         df = pd.DataFrame(query.data)
 
@@ -256,7 +251,18 @@ if st.session_state.authenticated:
 
             df["fecha_nacimiento"] = pd.to_datetime(df["fecha_nacimiento"], errors="coerce").dt.date
             df["Edad"] = df["fecha_nacimiento"].apply(calculate_age)
+            
             st.dataframe(df)
+
+            delete_id = st.text_input("🗑️ ID del paciente a eliminar:")
+            if st.button("Eliminar paciente"):
+                if delete_id:
+                    supabase.table("pacientes").delete().eq("id", int(delete_id)).execute()
+                    update_last_edit(st.session_state.user_name)
+                    st.success("Paciente eliminado exitosamente.")
+                    st.rerun()
+                else:
+                    st.warning("Introduce un ID válido.")
 
             if st.button("📥 Exportar a Excel"):
                 filename = "pacientes_valentina.xlsx"
@@ -282,22 +288,18 @@ if st.session_state.authenticated:
             "October": "octubre", "November": "noviembre", "December": "diciembre"
         }
 
-        # Fetch non-deceased patients
         query = supabase.table("pacientes").select("*").neq("estado", "fallecido").execute()
         df = pd.DataFrame(query.data)
 
         if not df.empty:
             df["fecha_nacimiento"] = pd.to_datetime(df["fecha_nacimiento"], errors="coerce").dt.date
             current_month = datetime.today().month
-            next_month = (current_month % 12) + 1  # Wrap around from December to January
+            next_month = (current_month % 12) + 1
             df["Edad"] = df["fecha_nacimiento"].apply(calculate_age)
 
-            # --- This month's birthdays ---
             df_this_month = df[pd.to_datetime(df["fecha_nacimiento"]).dt.month == current_month]
-            # --- Next month's birthdays ---
             df_next_month = df[pd.to_datetime(df["fecha_nacimiento"]).dt.month == next_month]
 
-            # --- Display current month birthdays ---
             current_month_name = MONTHS_ES[datetime.today().strftime('%B')]
             st.markdown(f"### 🎉 Cumpleaños de **{current_month_name}**")
             if not df_this_month.empty:
@@ -305,7 +307,6 @@ if st.session_state.authenticated:
             else:
                 st.info("No hay cumpleaños este mes.")
 
-            # --- Display next month birthdays ---
             next_month_name_en = datetime(datetime.today().year, next_month, 1).strftime('%B')
             next_month_name = MONTHS_ES[next_month_name_en]
             st.markdown(f"### 🎈 Cumpleaños de **{next_month_name}**")
