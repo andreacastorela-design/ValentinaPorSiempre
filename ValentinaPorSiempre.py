@@ -179,7 +179,11 @@ if st.session_state.authenticated:
 
         with st.form("add_patient_form"):
             nombre = st.text_input("Nombre del paciente")
-            fecha_nacimiento = st.date_input("Fecha de nacimiento")
+            fecha_nacimiento = st.date_input(
+                "Fecha de nacimiento",
+                min_value=date(1900, 1, 1),
+                max_value=date.today()
+            )
             nombre_tutor = st.text_input("Nombre del tutor")
             diagnostico = st.text_input("Diagnóstico")
             etapa_tratamiento = st.selectbox("Etapa del tratamiento", [
@@ -218,7 +222,6 @@ if st.session_state.authenticated:
 
     # ---------------- VIEW PATIENTS ----------------
     elif page == "📋 Ver Pacientes":
-        
         st.subheader("❤️‍🩹 Lista de pacientes")
 
         # --- Multiselect filters ---
@@ -296,7 +299,7 @@ if st.session_state.authenticated:
                 st.info("No hay cumpleaños este mes.")
 
             # --- Display next month birthdays ---
-            next_month_name = (datetime(datetime.today().year, next_month, 1).strftime('%B'))
+            next_month_name = datetime(datetime.today().year, next_month, 1).strftime('%B')
             st.markdown(f"### 🎈 Cumpleaños de **{next_month_name}**")
             if not df_next_month.empty:
                 st.dataframe(df_next_month[["nombre", "fecha_nacimiento", "Edad", "estado"]])
