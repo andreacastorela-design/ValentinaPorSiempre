@@ -4,9 +4,10 @@ from datetime import date, datetime
 from openpyxl import load_workbook
 from openpyxl.styles import Font, Alignment, PatternFill
 from pathlib import Path
-import base64, os
+import base64
 from supabase import create_client
 from dotenv import load_dotenv
+import os
 
 # ==========================================================
 #                 LOAD ENVIRONMENT VARIABLES
@@ -15,7 +16,7 @@ load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://uumezwowrtumbonsotyc.supabase.co")
 SUPABASE_KEY = os.getenv(
     "SUPABASE_KEY",
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV1bWV6d293cnR1bWJvbnNvdHljIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjExNTk1MzUsImV4cCI6MjA3NjczNTUzNX0.dZGdfqa7BuYH6_W3yqirn8DsuEoffnyBm1qoLU-K0A0",
 )
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -24,7 +25,7 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 # ==========================================================
 def ensure_last_edit_table():
     try:
-        supabase.table("last_edit").select("id").limit(1).execute()
+        supabase.table("last_edit").select("*").limit(1).execute()
     except Exception:
         try:
             supabase.rpc("execute_sql", {
@@ -44,21 +45,15 @@ ensure_last_edit_table()
 # ==========================================================
 #               PAGE CONFIGURATION
 # ==========================================================
-st.set_page_config(
-    page_title="Valentina por Siempre",
-    page_icon="VxS_logo.png",
-    layout="wide"
-)
+st.set_page_config(page_title="Valentina por Siempre", page_icon="VxS_logo.png", layout="wide")
 
 # ==========================================================
 #               LAST EDIT HELPERS
 # ==========================================================
 def update_last_edit(user_name):
+    now = datetime.now().isoformat()
     try:
-        now = datetime.now().isoformat()
-        supabase.table("last_edit").upsert({
-            "id": 1, "user_name": user_name, "timestamp": now
-        }).execute()
+        supabase.table("last_edit").upsert({"id": 1, "user_name": user_name, "timestamp": now}).execute()
     except Exception as e:
         st.warning(f"⚠️ No se pudo actualizar el registro de edición en Supabase: {e}")
 
@@ -66,55 +61,66 @@ def get_last_edit():
     try:
         result = supabase.table("last_edit").select("*").eq("id", 1).execute()
         if result.data:
-            rec = result.data[0]
-            return rec.get("user_name"), rec.get("timestamp")
+            record = result.data[0]
+            return record.get("user_name"), record.get("timestamp")
     except Exception:
-        pass
+        return None, None
     return None, None
 
 # ==========================================================
 #                 ACCESS CONTROL (LOGIN)
 # ==========================================================
 if "authenticated" not in st.session_state:
-    st.session_state.update({"authenticated": False, "user_name": ""})
+    st.session_state.authenticated = False
+    st.session_state.user_name = ""
 
 if not st.session_state.authenticated:
     st.sidebar.title("🔐 Ingreso")
     user_key = st.sidebar.text_input("Introduce tu clave de acceso:", type="password")
 
-    AUTHORIZED_KEYS = {"equipo_vxs": None, "valentina_master": "Andrea"}
+    AUTHORIZED_KEYS = {
+        "equipo_vxs": None,
+        "valentina_master": "Andrea"
+    }
 
     if user_key not in AUTHORIZED_KEYS:
         st.warning("Por favor, introduce la clave de acceso para continuar.")
         st.stop()
 
-    user_name = AUTHORIZED_KEYS[user_key] or st.sidebar.text_input("Tu nombre (para registrar ediciones):")
-    if not user_name:
-        st.info("Por favor, escribe tu nombre para continuar.")
-        st.stop()
+    if AUTHORIZED_KEYS[user_key] is None:
+        user_name = st.sidebar.text_input("Tu nombre (para registrar ediciones):")
+        if not user_name:
+            st.info("Por favor, escribe tu nombre para continuar.")
+            st.stop()
+    else:
+        user_name = AUTHORIZED_KEYS[user_key]
 
     if st.sidebar.button("Ingresar"):
-        st.session_state.update({"authenticated": True, "user_name": user_name})
+        st.session_state.authenticated = True
+        st.session_state.user_name = user_name
         st.rerun()
 
 # ==========================================================
 #                 STYLES & LOGO
 # ==========================================================
 def load_logo_base64(path: str):
-    if Path(path).exists():
-        with open(path, "rb") as f:
+    file_path = Path(path)
+    if file_path.exists():
+        with open(file_path, "rb") as f:
             return base64.b64encode(f.read()).decode()
     return None
 
 logo_b64 = load_logo_base64("VxS_logo.png")
-
 st.markdown(f"""
     <style>
     .main {{ background-color: #f7f5f2 !important; }}
     .custom-title {{
-        text-align: center; color: #352208;
-        font-size: 48px; font-weight: 800;
-        margin: -5px 0 15px;
+        text-align: center;
+        color: #352208;
+        font-size: 48px;
+        font-weight: 800;
+        margin-top: -5px;
+        margin-bottom: 15px;
     }}
     .corner-image {{
         position: fixed; top: 80px; right: 25px;
@@ -128,12 +134,6 @@ st.markdown(f"""
         background-color: rgba(255,255,255,0.8);
         padding: 5px 10px; border-radius: 8px;
     }}
-    /* Auto-fit table cells */
-    [data-testid="stDataFrame"] div[data-testid="stHorizontalBlock"] div[role="gridcell"] {{
-        white-space: normal !important;
-        overflow-wrap: anywhere !important;
-        word-break: break-word !important;
-    }}
     </style>
     {'<img src="data:image/png;base64,' + logo_b64 + '" class="corner-image">' if logo_b64 else ''}
 """, unsafe_allow_html=True)
@@ -145,17 +145,14 @@ st.markdown("<h1 class='custom-title'>💛 Valentina por Siempre</h1>", unsafe_a
 # ==========================================================
 def calculate_age(dob):
     if isinstance(dob, str):
-        try:
-            dob = datetime.strptime(dob, "%Y-%m-%d").date()
-        except Exception:
-            return None
+        dob = datetime.strptime(dob, "%Y-%m-%d").date()
     today = date.today()
     return today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
 
 def style_excel(df, filename):
     for col in ["fecha_nacimiento", "fecha_ultimo_apoyo"]:
         if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors="coerce").dt.date
+            df[col] = pd.to_datetime(df[col], errors='coerce').dt.date
 
     df.to_excel(filename, index=False)
     wb = load_workbook(filename)
@@ -164,18 +161,21 @@ def style_excel(df, filename):
     header_font = Font(bold=True, color="FFFFFF")
     header_fill = PatternFill("solid", fgColor="ff8330")
     header_alignment = Alignment(horizontal="center", vertical="center")
-
     for cell in ws[1]:
         cell.font = header_font
         cell.fill = header_fill
         cell.alignment = header_alignment
     ws.freeze_panes = "A2"
 
-    paliativos_col = next((i for i, c in enumerate(ws[1], 1) if c.value == "cuidados_paliativos"), None)
     paliativos_fill = PatternFill("solid", fgColor="FFAB66")
+    paliativos_col = None
+    for idx, cell in enumerate(ws[1], start=1):
+        if cell.value == "cuidados_paliativos":
+            paliativos_col = idx
+            break
 
     if paliativos_col:
-        for row in ws.iter_rows(min_row=2):
+        for row in ws.iter_rows(min_row=2, max_row=ws.max_row):
             if row[paliativos_col - 1].value in (1, True, "1", "true", "True"):
                 for cell in row:
                     cell.fill = paliativos_fill
@@ -183,12 +183,41 @@ def style_excel(df, filename):
     wb.save(filename)
 
 # ==========================================================
+#                DISPLAY PATIENT TABLE (AUTO WRAP)
+# ==========================================================
+def render_table(df):
+    styled_df = df.style.set_table_styles([
+        {'selector': 'th', 'props': [
+            ('text-align', 'left'),
+            ('white-space', 'nowrap'),
+            ('font-weight', 'bold'),
+            ('font-size', '15px'),
+            ('background-color', '#FFAB66'),
+            ('color', 'black'),
+            ('padding', '6px')
+        ]},
+        {'selector': 'td', 'props': [
+            ('white-space', 'normal'),
+            ('word-wrap', 'break-word'),
+            ('text-align', 'left'),
+            ('font-size', '14px'),
+            ('padding', '6px')
+        ]},
+        {'selector': 'table', 'props': [
+            ('border-collapse', 'collapse'),
+            ('width', '100%'),
+            ('table-layout', 'auto')
+        ]}
+    ])
+    st.markdown(styled_df.to_html(escape=False), unsafe_allow_html=True)
+
+# ==========================================================
 #                 MAIN INTERFACE
 # ==========================================================
 if st.session_state.authenticated:
     page = st.sidebar.radio(
         "Navegación",
-        ["➕ Agregar Paciente", "🖊️ Editar Paciente", "📋 Ver Pacientes", "🎂 Cumpleaños"]
+        ["➕ Agregar Paciente", "📋 Ver / Editar Pacientes", "🎂 Cumpleaños"]
     )
 
     # ---------------- ADD PATIENT ----------------
@@ -232,87 +261,68 @@ if st.session_state.authenticated:
                 update_last_edit(st.session_state.user_name)
                 st.success(f"✅ Paciente agregado exitosamente por {st.session_state.user_name}.")
 
-    # ---------------- EDIT PATIENT ----------------
-    elif page == "🖊️ Editar Paciente":
-        st.subheader("Editar información de paciente existente")
-        data = supabase.table("pacientes").select("*").execute()
-        df = pd.DataFrame(data.data)
-
-        if df.empty:
-            st.info("No hay pacientes para editar.")
-        else:
-            df = df.sort_values(by="id", ascending=True)
-            selected_name = st.selectbox("Selecciona un paciente para editar", df["nombre"].tolist())
-            patient = df[df["nombre"] == selected_name].iloc[0]
-
-            with st.form("edit_patient_form"):
-                nombre_tutor = st.text_input("Nombre del tutor", value=patient["nombre_tutor"])
-                diagnostico = st.text_input("Diagnóstico", value=patient["diagnostico"])
-                etapa_tratamiento = st.selectbox(
-                    "Etapa del tratamiento",
-                    ["Diagnóstico inicial", "En tratamiento", "En vigilancia", "Cuidados paliativos"],
-                    index=["Diagnóstico inicial", "En tratamiento", "En vigilancia", "Cuidados paliativos"].index(patient["etapa_tratamiento"])
-                )
-                hospital = st.text_input("Hospital", value=patient["hospital"])
-                estado_origen = st.text_input("Estado de origen", value=patient["estado_origen"])
-                telefono_contacto = st.text_input("Celular de contacto", value=patient["telefono_contacto"])
-                apoyos_entregados = st.text_input("Apoyos entregados", value=patient["apoyos_entregados"])
-                notas = st.text_area("Notas", value=patient["notas"])
-                estado = st.selectbox("Estado del paciente", ["activo", "vigilancia", "fallecido"],
-                    index=["activo", "vigilancia", "fallecido"].index(patient["estado"]))
-                cuidados_paliativos = st.checkbox("¿Está en cuidados paliativos?", value=patient["cuidados_paliativos"])
-                submitted_edit = st.form_submit_button("💾 Guardar cambios")
-
-                if submitted_edit:
-                    update_data = {
-                        "nombre_tutor": nombre_tutor,
-                        "diagnostico": diagnostico,
-                        "etapa_tratamiento": etapa_tratamiento,
-                        "hospital": hospital,
-                        "estado_origen": estado_origen,
-                        "telefono_contacto": telefono_contacto,
-                        "apoyos_entregados": apoyos_entregados,
-                        "notas": notas,
-                        "estado": estado,
-                        "cuidados_paliativos": cuidados_paliativos
-                    }
-                    supabase.table("pacientes").update(update_data).eq("nombre", selected_name).execute()
-                    update_last_edit(st.session_state.user_name)
-                    st.success("✅ Cambios guardados correctamente.")
-                    st.rerun()
-
-    # ---------------- VIEW PATIENTS ----------------
-    elif page == "📋 Ver Pacientes":
+    # ---------------- VIEW / EDIT PATIENTS ----------------
+    elif page == "📋 Ver / Editar Pacientes":
         st.subheader("❤️‍🩹 Lista de pacientes")
+
         col1, col2, col3 = st.columns(3)
-        with col1: act = st.checkbox("Activo", True)
-        with col2: vig = st.checkbox("Vigilancia", False)
-        with col3: fall = st.checkbox("Fallecido", False)
+        with col1: filtro_activo = st.checkbox("Activo", value=True)
+        with col2: filtro_vigilancia = st.checkbox("Vigilancia", value=False)
+        with col3: filtro_fallecido = st.checkbox("Fallecido", value=False)
         search = st.text_input("🔍 Buscar paciente por nombre o diagnóstico")
 
-        estados = [s for s, f in zip(["activo", "vigilancia", "fallecido"], [act, vig, fall]) if f]
-        if not estados:
+        selected_estados = []
+        if filtro_activo: selected_estados.append("activo")
+        if filtro_vigilancia: selected_estados.append("vigilancia")
+        if filtro_fallecido: selected_estados.append("fallecido")
+        if not selected_estados:
             st.info("Selecciona al menos un estado.")
             st.stop()
 
-        data = supabase.table("pacientes").select("*").in_("estado", estados).execute()
-        df = pd.DataFrame(data.data)
+        query = supabase.table("pacientes").select("*").in_("estado", selected_estados).execute()
+        df = pd.DataFrame(query.data)
 
         if not df.empty:
-            df = df.sort_values(by="id", ascending=True)
             if search:
                 df = df[df["nombre"].str.contains(search, case=False, na=False) |
                         df["diagnostico"].str.contains(search, case=False, na=False)]
+
+            df = df.sort_values(by="id", ascending=True)
             df["fecha_nacimiento"] = pd.to_datetime(df["fecha_nacimiento"], errors="coerce").dt.date
             df["Edad"] = df["fecha_nacimiento"].apply(calculate_age)
 
-            st.dataframe(
-                df.style.apply(lambda r: [
-                    "background-color: #FFAB66" if r["cuidados_paliativos"] in [1, True, "1", "true", "True"] else ""
-                ] * len(r), axis=1),
-                use_container_width=True
-            )
+            render_table(df)
 
+            st.markdown("---")
+            edit_id = st.number_input("ID del paciente a editar:", min_value=1, step=1)
+            if st.button("✏️ Editar paciente"):
+                paciente = df[df["id"] == edit_id]
+                if not paciente.empty:
+                    paciente = paciente.iloc[0]
+                    with st.form("edit_form"):
+                        nombre = st.text_input("Nombre del paciente", paciente["nombre"])
+                        diagnostico = st.text_input("Diagnóstico", paciente["diagnostico"])
+                        etapa_tratamiento = st.selectbox("Etapa del tratamiento", [
+                            "Diagnóstico inicial", "En tratamiento", "En vigilancia", "Cuidados paliativos"
+                        ], index=["Diagnóstico inicial", "En tratamiento", "En vigilancia", "Cuidados paliativos"].index(paciente["etapa_tratamiento"]))
+                        estado = st.selectbox("Estado", ["activo", "vigilancia", "fallecido"], index=["activo", "vigilancia", "fallecido"].index(paciente["estado"]))
+                        notas = st.text_area("Notas", paciente["notas"] or "")
+                        submitted_edit = st.form_submit_button("Guardar cambios")
+                        if submitted_edit:
+                            supabase.table("pacientes").update({
+                                "nombre": nombre,
+                                "diagnostico": diagnostico,
+                                "etapa_tratamiento": etapa_tratamiento,
+                                "estado": estado,
+                                "notas": notas
+                            }).eq("id", edit_id).execute()
+                            update_last_edit(st.session_state.user_name)
+                            st.success(f"✅ Paciente actualizado correctamente por {st.session_state.user_name}.")
+                            st.rerun()
+                else:
+                    st.warning("No se encontró un paciente con ese ID.")
+
+            st.markdown("---")
             delete_name = st.text_input("Nombre exacto del paciente a eliminar:")
             if st.button("🗑️ Eliminar paciente"):
                 if delete_name.strip():
@@ -326,8 +336,12 @@ if st.session_state.authenticated:
             if st.button("📥 Exportar a Excel"):
                 filename = "pacientes_valentina.xlsx"
                 style_excel(df, filename)
-                with open(filename, "rb") as f:
-                    st.download_button("Descargar archivo Excel", data=f, file_name=filename, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                with open(filename, "rb") as file:
+                    st.download_button(
+                        "Descargar archivo Excel", data=file,
+                        file_name=filename,
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
         else:
             st.info("No hay pacientes registrados con ese estado.")
 
@@ -340,23 +354,24 @@ if st.session_state.authenticated:
             "July": "julio", "August": "agosto", "September": "septiembre",
             "October": "octubre", "November": "noviembre", "December": "diciembre"
         }
-        data = supabase.table("pacientes").select("*").neq("estado", "fallecido").execute()
-        df = pd.DataFrame(data.data)
+        query = supabase.table("pacientes").select("*").neq("estado", "fallecido").execute()
+        df = pd.DataFrame(query.data)
         if not df.empty:
             df["fecha_nacimiento"] = pd.to_datetime(df["fecha_nacimiento"], errors="coerce").dt.date
             current_month = datetime.today().month
             next_month = (current_month % 12) + 1
             df["Edad"] = df["fecha_nacimiento"].apply(calculate_age)
+            df_this_month = df[pd.to_datetime(df["fecha_nacimiento"]).dt.month == current_month]
+            df_next_month = df[pd.to_datetime(df["fecha_nacimiento"]).dt.month == next_month]
 
-            df_this = df[pd.to_datetime(df["fecha_nacimiento"]).dt.month == current_month]
-            df_next = df[pd.to_datetime(df["fecha_nacimiento"]).dt.month == next_month]
+            current_month_name = MONTHS_ES[datetime.today().strftime('%B')]
+            st.markdown(f"### 🎉 Cumpleaños de **{current_month_name}**")
+            render_table(df_this_month[["nombre", "fecha_nacimiento", "Edad", "estado"]])
 
-            st.markdown(f"### 🎉 Cumpleaños de **{MONTHS_ES[datetime.today().strftime('%B')]}**")
-            st.dataframe(df_this[["nombre", "fecha_nacimiento", "Edad", "estado"]])
-
-            next_month_name = MONTHS_ES[datetime(datetime.today().year, next_month, 1).strftime("%B")]
+            next_month_name_en = datetime(datetime.today().year, next_month, 1).strftime('%B')
+            next_month_name = MONTHS_ES[next_month_name_en]
             st.markdown(f"### 🎈 Cumpleaños de **{next_month_name}**")
-            st.dataframe(df_next[["nombre", "fecha_nacimiento", "Edad", "estado"]])
+            render_table(df_next_month[["nombre", "fecha_nacimiento", "Edad", "estado"]])
         else:
             st.info("No hay pacientes registrados.")
 
@@ -364,10 +379,10 @@ if st.session_state.authenticated:
     last_user, last_time = get_last_edit()
     if last_user and last_time:
         try:
-            formatted = datetime.fromisoformat(last_time).strftime("%d/%m/%Y %H:%M")
+            formatted_time = datetime.fromisoformat(last_time).strftime('%d/%m/%Y %H:%M')
         except Exception:
-            formatted = last_time
+            formatted_time = last_time
         st.sidebar.markdown(
-            f"<div class='bottom-left'>Última edición por <b>{last_user}</b> el {formatted}</div>",
+            f"<div class='bottom-left'>Última edición por <b>{last_user}</b> el {formatted_time}</div>",
             unsafe_allow_html=True
         )
