@@ -323,15 +323,17 @@ if st.session_state.authenticated:
                     st.warning("No se encontró un paciente con ese ID.")
 
             st.markdown("---")
-            delete_name = st.text_input("Nombre exacto del paciente a eliminar:")
+            delete_id = st.number_input("ID del paciente a eliminar:", min_value=1, step=1)
             if st.button("🗑️ Eliminar paciente"):
-                if delete_name.strip():
-                    supabase.table("pacientes").delete().eq("nombre", delete_name.strip()).execute()
+                paciente = df[df["id"] == delete_id]
+                if not paciente.empty:
+                    nombre = paciente.iloc[0]["nombre"]
+                    supabase.table("pacientes").delete().eq("id", delete_id).execute()
                     update_last_edit(st.session_state.user_name)
-                    st.success(f"🗑️ Paciente '{delete_name}' eliminado correctamente.")
+                    st.success(f"🗑️ Paciente '{nombre}' (ID {delete_id}) eliminado correctamente.")
                     st.rerun()
                 else:
-                    st.warning("Escribe el nombre exacto del paciente para eliminarlo.")
+                    st.warning("No se encontró un paciente con ese ID.")
 
             if st.button("📥 Exportar a Excel"):
                 filename = "pacientes_valentina.xlsx"
