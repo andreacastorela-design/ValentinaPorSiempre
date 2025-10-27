@@ -248,10 +248,10 @@ if st.session_state.authenticated:
             df["fecha_nacimiento"] = pd.to_datetime(df["fecha_nacimiento"], errors="coerce").dt.date
             df["Edad"] = df["fecha_nacimiento"].apply(calculate_age)
 
-            # 💛 Highlight palliative care rows
+            # Highlight palliative care rows
             def highlight_paliativos(row):
                 if str(row["cuidados_paliativos"]).lower() in ("true", "1", "t", "sí", "si"):
-                    return ["background-color: #fff3b0"] * len(row)
+                    return ["background-color: #ffab66"] * len(row)
                 return [""] * len(row)
 
             st.dataframe(df.style.apply(highlight_paliativos, axis=1))
