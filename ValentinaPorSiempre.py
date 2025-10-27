@@ -15,7 +15,10 @@ import os
 load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://uumezwowrtumbonsotyc.supabase.co")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV1bWV6d293cnR1bWJvbnNvdHljIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjExNTk1MzUsImV4cCI6MjA3NjczNTUzNX0.dZGdfqa7BuYH6_W3yqirn8DsuEoffnyBm1qoLU-K0A0")
+SUPABASE_KEY = os.getenv(
+    "SUPABASE_KEY",
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV1bWV6d293cnR1bWJvbnNvdHljIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjExNTk1MzUsImV4cCI6MjA3NjczNTUzNX0.dZGdfqa7BuYH6_W3yqirn8DsuEoffnyBm1qoLU-K0A0",
+)
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # ==========================================================
@@ -179,11 +182,7 @@ if st.session_state.authenticated:
 
         with st.form("add_patient_form"):
             nombre = st.text_input("Nombre del paciente")
-            fecha_nacimiento = st.date_input(
-                "Fecha de nacimiento",
-                min_value=date(1900, 1, 1),
-                max_value=date.today()
-            )
+            fecha_nacimiento = st.date_input("Fecha de nacimiento", min_value=date(1900, 1, 1))
             nombre_tutor = st.text_input("Nombre del tutor")
             diagnostico = st.text_input("Diagnóstico")
             etapa_tratamiento = st.selectbox("Etapa del tratamiento", [
@@ -255,7 +254,7 @@ if st.session_state.authenticated:
                 df = df[df["nombre"].str.contains(search, case=False, na=False) |
                         df["diagnostico"].str.contains(search, case=False, na=False)]
 
-            df["fecha_nacimiento"] = pd.to_datetime(df["fecha_nacimiento"])
+            df["fecha_nacimiento"] = pd.to_datetime(df["fecha_nacimiento"], errors="coerce").dt.date
             df["Edad"] = df["fecha_nacimiento"].apply(calculate_age)
             st.dataframe(df)
 
@@ -276,30 +275,39 @@ if st.session_state.authenticated:
     elif page == "🎂 Cumpleaños":
         st.subheader("Cumpleaños del mes y del próximo mes")
 
+        MONTHS_ES = {
+            "January": "enero", "February": "febrero", "March": "marzo",
+            "April": "abril", "May": "mayo", "June": "junio",
+            "July": "julio", "August": "agosto", "September": "septiembre",
+            "October": "octubre", "November": "noviembre", "December": "diciembre"
+        }
+
         # Fetch non-deceased patients
         query = supabase.table("pacientes").select("*").neq("estado", "fallecido").execute()
         df = pd.DataFrame(query.data)
 
         if not df.empty:
-            df["fecha_nacimiento"] = pd.to_datetime(df["fecha_nacimiento"], errors="coerce")
+            df["fecha_nacimiento"] = pd.to_datetime(df["fecha_nacimiento"], errors="coerce").dt.date
             current_month = datetime.today().month
             next_month = (current_month % 12) + 1  # Wrap around from December to January
             df["Edad"] = df["fecha_nacimiento"].apply(calculate_age)
 
             # --- This month's birthdays ---
-            df_this_month = df[df["fecha_nacimiento"].dt.month == current_month]
+            df_this_month = df[pd.to_datetime(df["fecha_nacimiento"]).dt.month == current_month]
             # --- Next month's birthdays ---
-            df_next_month = df[df["fecha_nacimiento"].dt.month == next_month]
+            df_next_month = df[pd.to_datetime(df["fecha_nacimiento"]).dt.month == next_month]
 
             # --- Display current month birthdays ---
-            st.markdown(f"### 🎉 Cumpleaños de **{datetime.today().strftime('%B')}**")
+            current_month_name = MONTHS_ES[datetime.today().strftime('%B')]
+            st.markdown(f"### 🎉 Cumpleaños de **{current_month_name}**")
             if not df_this_month.empty:
                 st.dataframe(df_this_month[["nombre", "fecha_nacimiento", "Edad", "estado"]])
             else:
                 st.info("No hay cumpleaños este mes.")
 
             # --- Display next month birthdays ---
-            next_month_name = datetime(datetime.today().year, next_month, 1).strftime('%B')
+            next_month_name_en = datetime(datetime.today().year, next_month, 1).strftime('%B')
+            next_month_name = MONTHS_ES[next_month_name_en]
             st.markdown(f"### 🎈 Cumpleaños de **{next_month_name}**")
             if not df_next_month.empty:
                 st.dataframe(df_next_month[["nombre", "fecha_nacimiento", "Edad", "estado"]])
