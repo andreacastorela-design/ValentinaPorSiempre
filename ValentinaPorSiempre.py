@@ -271,17 +271,39 @@ if st.session_state.authenticated:
 
     # ---------------- BIRTHDAYS ----------------
     elif page == "🎂 Cumpleaños":
-        st.subheader("🎉 Lista de cumpleaños del mes")
-        query = supabase.table("pacientes").select("*").neq("estado", "fallecido").execute()
-        df = pd.DataFrame(query.data)
-        if not df.empty:
-            df["fecha_nacimiento"] = pd.to_datetime(df["fecha_nacimiento"])
-            current_month = datetime.today().month
-            df = df[df["fecha_nacimiento"].dt.month == current_month]
-            df["Edad"] = df["fecha_nacimiento"].apply(calculate_age)
-            st.dataframe(df[["nombre", "fecha_nacimiento", "Edad", "estado"]])
+    st.subheader("Cumpleaños del mes y del próximo mes")
+
+    # Fetch non-deceased patients
+    query = supabase.table("pacientes").select("*").neq("estado", "fallecido").execute()
+    df = pd.DataFrame(query.data)
+
+    if not df.empty:
+        df["fecha_nacimiento"] = pd.to_datetime(df["fecha_nacimiento"], errors="coerce")
+        current_month = datetime.today().month
+        next_month = (current_month % 12) + 1  # Wrap around from December to January
+        df["Edad"] = df["fecha_nacimiento"].apply(calculate_age)
+
+        # --- This month's birthdays ---
+        df_this_month = df[df["fecha_nacimiento"].dt.month == current_month]
+        # --- Next month's birthdays ---
+        df_next_month = df[df["fecha_nacimiento"].dt.month == next_month]
+
+        # --- Display current month birthdays ---
+        st.markdown(f"### 🎉 Cumpleaños de **{datetime.today().strftime('%B')}**")
+        if not df_this_month.empty:
+            st.dataframe(df_this_month[["nombre", "fecha_nacimiento", "Edad", "estado"]])
         else:
             st.info("No hay cumpleaños este mes.")
+
+        # --- Display next month birthdays ---
+        next_month_name = (datetime(datetime.today().year, next_month, 1).strftime('%B'))
+        st.markdown(f"### 🎈 Cumpleaños de **{next_month_name}**")
+        if not df_next_month.empty:
+            st.dataframe(df_next_month[["nombre", "fecha_nacimiento", "Edad", "estado"]])
+        else:
+            st.info("No hay cumpleaños el próximo mes.")
+    else:
+        st.info("No hay pacientes registrados.")
 
     # ---------------- FOOTER ----------------
     last_user, last_time = get_last_edit()
