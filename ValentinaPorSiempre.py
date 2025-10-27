@@ -25,10 +25,8 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 # ==========================================================
 def ensure_last_edit_table():
     try:
-        # Try selecting from last_edit
         supabase.table("last_edit").select("*").limit(1).execute()
     except Exception:
-        # Create table if missing
         try:
             supabase.rpc("execute_sql", {
                 "sql": """
@@ -190,7 +188,7 @@ def style_excel(df, filename):
 if st.session_state.authenticated:
     page = st.sidebar.radio(
         "Navegación",
-        ["➕ Agregar Paciente", "📋 Ver Pacientes", "🎂 Cumpleaños"]
+        ["➕ Agregar Paciente", "🖊️ Editar Paciente", "📋 Ver Pacientes", "🎂 Cumpleaños"]
     )
 
     # ---------------- ADD PATIENT ----------------
@@ -233,6 +231,54 @@ if st.session_state.authenticated:
                 supabase.table("pacientes").insert(data).execute()
                 update_last_edit(st.session_state.user_name)
                 st.success(f"✅ Paciente agregado exitosamente por {st.session_state.user_name}.")
+
+    # ---------------- EDIT PATIENT ----------------
+    elif page == "🖊️ Editar Paciente":
+        st.subheader("Editar información de paciente existente")
+        data = supabase.table("pacientes").select("*").execute()
+        df = pd.DataFrame(data.data)
+
+        if df.empty:
+            st.info("No hay pacientes para editar.")
+        else:
+            selected_name = st.selectbox("Selecciona un paciente para editar", df["nombre"].tolist())
+            patient_data = df[df["nombre"] == selected_name].iloc[0]
+
+            with st.form("edit_patient_form"):
+                nombre_tutor = st.text_input("Nombre del tutor", value=patient_data["nombre_tutor"])
+                diagnostico = st.text_input("Diagnóstico", value=patient_data["diagnostico"])
+                etapa_tratamiento = st.selectbox(
+                    "Etapa del tratamiento",
+                    ["Diagnóstico inicial", "En tratamiento", "En vigilancia", "Cuidados paliativos"],
+                    index=["Diagnóstico inicial", "En tratamiento", "En vigilancia", "Cuidados paliativos"].index(patient_data["etapa_tratamiento"])
+                )
+                hospital = st.text_input("Hospital", value=patient_data["hospital"])
+                estado_origen = st.text_input("Estado de origen", value=patient_data["estado_origen"])
+                telefono_contacto = st.text_input("Celular de contacto", value=patient_data["telefono_contacto"])
+                apoyos_entregados = st.text_input("Apoyos entregados", value=patient_data["apoyos_entregados"])
+                notas = st.text_area("Notas", value=patient_data["notas"])
+                estado = st.selectbox("Estado del paciente", ["activo", "vigilancia", "fallecido"],
+                                      index=["activo", "vigilancia", "fallecido"].index(patient_data["estado"]))
+                cuidados_paliativos = st.checkbox("¿Está en cuidados paliativos?", value=patient_data["cuidados_paliativos"])
+                submitted_edit = st.form_submit_button("💾 Guardar cambios")
+
+                if submitted_edit:
+                    update_data = {
+                        "nombre_tutor": nombre_tutor,
+                        "diagnostico": diagnostico,
+                        "etapa_tratamiento": etapa_tratamiento,
+                        "hospital": hospital,
+                        "estado_origen": estado_origen,
+                        "telefono_contacto": telefono_contacto,
+                        "apoyos_entregados": apoyos_entregados,
+                        "notas": notas,
+                        "estado": estado,
+                        "cuidados_paliativos": cuidados_paliativos
+                    }
+                    supabase.table("pacientes").update(update_data).eq("nombre", selected_name).execute()
+                    update_last_edit(st.session_state.user_name)
+                    st.success("✅ Cambios guardados correctamente.")
+                    st.rerun()
 
     # ---------------- VIEW PATIENTS ----------------
     elif page == "📋 Ver Pacientes":
