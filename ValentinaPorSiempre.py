@@ -134,6 +134,12 @@ st.markdown(f"""
         background-color: rgba(255,255,255,0.8);
         padding: 5px 10px; border-radius: 8px;
     }}
+    /* ✅ Text wrap fix for tables */
+    table.dataframe td, table.dataframe th {{
+        white-space: normal !important;
+        word-wrap: break-word !important;
+        max-width: 300px !important;
+    }}
     </style>
     {'<img src="data:image/png;base64,' + logo_b64 + '" class="corner-image">' if logo_b64 else ''}
 """, unsafe_allow_html=True)
@@ -165,6 +171,13 @@ def style_excel(df, filename):
         cell.alignment = header_alignment
     ws.freeze_panes = "A2"
     wb.save(filename)
+
+def display_wrapped_table(df):
+    """Display an HTML-rendered DataFrame with text wrapping."""
+    st.markdown(
+        df.to_html(escape=False, index=False, justify='left', classes='dataframe'),
+        unsafe_allow_html=True
+    )
 
 # ==========================================================
 #                 MAIN INTERFACE
@@ -226,17 +239,7 @@ if st.session_state.authenticated:
             df = df.sort_values(by="id", ascending=True).reset_index(drop=True)
             df["Edad"] = df["fecha_nacimiento"].apply(calculate_age)
 
-            st.data_editor(
-                df,
-                column_config={
-                    "nombre": st.column_config.TextColumn("Nombre", width="medium"),
-                    "diagnostico": st.column_config.TextColumn("Diagnóstico", width="large"),
-                    "notas": st.column_config.TextColumn("Notas", width="large"),
-                },
-                hide_index=True,
-                use_container_width=True,
-                disabled=True
-            )
+            display_wrapped_table(df)  # ✅ FIXED: text wraps in cells
 
             # --- EDIT SECTION ---
             selected_id = st.selectbox("Selecciona ID del paciente para editar", df["id"].tolist())
@@ -304,12 +307,12 @@ if st.session_state.authenticated:
 
             current_month_name = MONTHS_ES[datetime.today().strftime('%B')]
             st.markdown(f"### 🎉 Cumpleaños de **{current_month_name}**")
-            st.dataframe(df_this_month[["nombre", "fecha_nacimiento", "Edad", "estado"]])
+            display_wrapped_table(df_this_month[["nombre", "fecha_nacimiento", "Edad", "estado"]])
 
             next_month_name_en = datetime(datetime.today().year, next_month, 1).strftime('%B')
             next_month_name = MONTHS_ES[next_month_name_en]
             st.markdown(f"### 🎈 Cumpleaños de **{next_month_name}**")
-            st.dataframe(df_next_month[["nombre", "fecha_nacimiento", "Edad", "estado"]])
+            display_wrapped_table(df_next_month[["nombre", "fecha_nacimiento", "Edad", "estado"]])
         else:
             st.info("No hay pacientes registrados.")
 
