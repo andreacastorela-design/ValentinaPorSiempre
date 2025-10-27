@@ -13,22 +13,17 @@ import os
 #                 LOAD ENVIRONMENT VARIABLES
 # ==========================================================
 load_dotenv()
-
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://uumezwowrtumbonsotyc.supabase.co")
 SUPABASE_KEY = os.getenv(
     "SUPABASE_KEY",
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV1bWV6d293cnR1bWJvbnNvdHljIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjExNTk1MzUsImV4cCI6MjA3NjczNTUzNX0.dZGdfqa7BuYH6_W3yqirn8DsuEoffnyBm1qoLU-K0A0",
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 )
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # ==========================================================
 #                 PAGE CONFIGURATION
 # ==========================================================
-st.set_page_config(
-    page_title="Valentina por Siempre",
-    page_icon="VxS_logo.png",
-    layout="wide"
-)
+st.set_page_config(page_title="Valentina por Siempre", page_icon="VxS_logo.png", layout="wide")
 
 # ==========================================================
 #               LAST EDIT TRACKING HELPERS
@@ -135,12 +130,13 @@ def style_excel(df, filename):
     """Export styled Excel file with color rows and frozen header"""
     for col in ["fecha_nacimiento", "fecha_ultimo_apoyo"]:
         if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors='coerce').dt.date
+            df[col] = pd.to_datetime(df[col], errors="coerce").dt.date
 
     df.to_excel(filename, index=False)
     wb = load_workbook(filename)
     ws = wb.active
 
+    # Header style
     header_font = Font(bold=True, color="FFFFFF")
     header_fill = PatternFill("solid", fgColor="ff8330")
     header_alignment = Alignment(horizontal="center", vertical="center")
@@ -150,6 +146,7 @@ def style_excel(df, filename):
         cell.alignment = header_alignment
     ws.freeze_panes = "A2"
 
+    # Highlight palliative care rows (universal boolean check)
     paliativos_fill = PatternFill("solid", fgColor="fbc851")
     paliativos_col = None
     for idx, cell in enumerate(ws[1], start=1):
@@ -159,7 +156,8 @@ def style_excel(df, filename):
 
     if paliativos_col:
         for row in ws.iter_rows(min_row=2, max_row=ws.max_row):
-            if row[paliativos_col - 1].value in (1, True, "1", "true", "True"):
+            value = str(row[paliativos_col - 1].value).strip().lower()
+            if value in ("1", "true", "t", "sí", "si"):
                 for cell in row:
                     cell.fill = paliativos_fill
 
@@ -169,10 +167,7 @@ def style_excel(df, filename):
 #                 MAIN INTERFACE
 # ==========================================================
 if st.session_state.authenticated:
-    page = st.sidebar.radio(
-        "Navegación",
-        ["➕ Agregar Paciente", "📋 Ver Pacientes", "🎂 Cumpleaños"]
-    )
+    page = st.sidebar.radio("Navegación", ["➕ Agregar Paciente", "📋 Ver Pacientes", "🎂 Cumpleaños"])
 
     # ---------------- ADD PATIENT ----------------
     if page == "➕ Agregar Paciente":
@@ -183,9 +178,10 @@ if st.session_state.authenticated:
             fecha_nacimiento = st.date_input("Fecha de nacimiento", min_value=date(1900, 1, 1))
             nombre_tutor = st.text_input("Nombre del tutor")
             diagnostico = st.text_input("Diagnóstico")
-            etapa_tratamiento = st.selectbox("Etapa del tratamiento", [
-                "Diagnóstico inicial", "En tratamiento", "En vigilancia", "Cuidados paliativos"
-            ])
+            etapa_tratamiento = st.selectbox(
+                "Etapa del tratamiento",
+                ["Diagnóstico inicial", "En tratamiento", "En vigilancia", "Cuidados paliativos"]
+            )
             hospital = st.text_input("Hospital")
             estado_origen = st.text_input("Estado de origen")
             telefono_contacto = st.text_input("Celular de contacto")
@@ -251,18 +247,14 @@ if st.session_state.authenticated:
 
             df["fecha_nacimiento"] = pd.to_datetime(df["fecha_nacimiento"], errors="coerce").dt.date
             df["Edad"] = df["fecha_nacimiento"].apply(calculate_age)
-            
-            st.dataframe(df)
 
-            delete_id = st.text_input("🗑️ ID del paciente a eliminar:")
-            if st.button("Eliminar paciente"):
-                if delete_id:
-                    supabase.table("pacientes").delete().eq("id", int(delete_id)).execute()
-                    update_last_edit(st.session_state.user_name)
-                    st.success("Paciente eliminado exitosamente.")
-                    st.rerun()
-                else:
-                    st.warning("Introduce un ID válido.")
+            # 💛 Highlight palliative care rows
+            def highlight_paliativos(row):
+                if str(row["cuidados_paliativos"]).lower() in ("true", "1", "t", "sí", "si"):
+                    return ["background-color: #fff3b0"] * len(row)
+                return [""] * len(row)
+
+            st.dataframe(df.style.apply(highlight_paliativos, axis=1))
 
             if st.button("📥 Exportar a Excel"):
                 filename = "pacientes_valentina.xlsx"
@@ -274,6 +266,15 @@ if st.session_state.authenticated:
                         file_name=filename,
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     )
+
+            # Delete option
+            st.markdown("### 🗑️ Eliminar paciente")
+            delete_name = st.selectbox("Selecciona un paciente para eliminar:", df["nombre"].tolist())
+            if st.button("Eliminar definitivamente"):
+                supabase.table("pacientes").delete().eq("nombre", delete_name).execute()
+                update_last_edit(st.session_state.user_name)
+                st.success(f"Paciente '{delete_name}' eliminado.")
+                st.rerun()
         else:
             st.info("No hay pacientes registrados con ese estado.")
 
