@@ -139,6 +139,9 @@ st.markdown(f"""
         white-space: normal !important;
         word-wrap: break-word !important;
         max-width: 300px !important;
+        text-align: left !important;
+        vertical-align: top !important;
+        padding: 6px !important;
     }}
     </style>
     {'<img src="data:image/png;base64,' + logo_b64 + '" class="corner-image">' if logo_b64 else ''}
@@ -170,14 +173,35 @@ def style_excel(df, filename):
         cell.fill = header_fill
         cell.alignment = header_alignment
     ws.freeze_panes = "A2"
+
+    paliativos_fill = PatternFill("solid", fgColor="FFAB66")
+    paliativos_col = None
+    for idx, cell in enumerate(ws[1], start=1):
+        if cell.value == "cuidados_paliativos":
+            paliativos_col = idx
+            break
+    if paliativos_col:
+        for row in ws.iter_rows(min_row=2, max_row=ws.max_row):
+            if row[paliativos_col - 1].value in (1, True, "1", "true", "True"):
+                for cell in row:
+                    cell.fill = paliativos_fill
     wb.save(filename)
 
 def display_wrapped_table(df):
-    """Display an HTML-rendered DataFrame with text wrapping."""
-    st.markdown(
-        df.to_html(escape=False, index=False, justify='left', classes='dataframe'),
-        unsafe_allow_html=True
+    """Display a wrapped HTML DataFrame with cuidados paliativos highlight."""
+    df = df.copy()
+    def row_style(row):
+        style = ""
+        if row.get("cuidados_paliativos") in [1, True, "1", "true", "True"]:
+            style = 'background-color: #FFAB66;'
+        return f'<tr style="{style}">' + ''.join(f"<td>{x}</td>" for x in row) + "</tr>"
+
+    table_html = (
+        "<table class='dataframe'>"
+        "<thead><tr>" + "".join(f"<th>{c}</th>" for c in df.columns) + "</tr></thead>"
+        "<tbody>" + "".join(row_style(row) for _, row in df.iterrows()) + "</tbody></table>"
     )
+    st.markdown(table_html, unsafe_allow_html=True)
 
 # ==========================================================
 #                 MAIN INTERFACE
@@ -239,7 +263,7 @@ if st.session_state.authenticated:
             df = df.sort_values(by="id", ascending=True).reset_index(drop=True)
             df["Edad"] = df["fecha_nacimiento"].apply(calculate_age)
 
-            display_wrapped_table(df)  # ✅ FIXED: text wraps in cells
+            display_wrapped_table(df)  # ✅ FIXED: text wraps + highlight cuidados paliativos
 
             # --- EDIT SECTION ---
             selected_id = st.selectbox("Selecciona ID del paciente para editar", df["id"].tolist())
@@ -270,7 +294,7 @@ if st.session_state.authenticated:
             # --- DELETE SECTION ---
             delete_id = st.number_input("🗑️ ID del paciente a eliminar", min_value=0, step=1)
             if st.button("Confirmar eliminación"):
-                confirm = st.warning(f"¿Estás seguro de eliminar el paciente con ID {delete_id}? Esta acción es irreversible.")
+                st.warning(f"⚠️ ¿Seguro que deseas eliminar el paciente con ID {delete_id}?")
                 if st.button("✅ Sí, eliminar permanentemente"):
                     supabase.table("pacientes").delete().eq("id", delete_id).execute()
                     update_last_edit(st.session_state.user_name)
