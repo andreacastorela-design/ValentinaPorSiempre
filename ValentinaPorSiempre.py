@@ -134,7 +134,7 @@ st.markdown(f"""
         background-color: rgba(255,255,255,0.8);
         padding: 5px 10px; border-radius: 8px;
     }}
-    /* ✅ Text wrap fix for tables */
+    /* Text wrap fix for tables */
     table.dataframe td, table.dataframe th {{
         white-space: normal !important;
         word-wrap: break-word !important;
@@ -263,7 +263,7 @@ if st.session_state.authenticated:
             df = df.sort_values(by="id", ascending=True).reset_index(drop=True)
             df["Edad"] = df["fecha_nacimiento"].apply(calculate_age)
 
-            display_wrapped_table(df)  # ✅ FIXED: text wraps + highlight cuidados paliativos
+            display_wrapped_table(df)  #highlight cuidados paliativos
 
             # --- EDIT SECTION ---
             selected_id = st.selectbox("Selecciona ID del paciente para editar", df["id"].tolist())
