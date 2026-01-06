@@ -2,7 +2,12 @@ import streamlit as st
 # ==========================================================
 #               PAGE CONFIGURATION
 # ==========================================================
-st.set_page_config(page_title="Valentina por Siempre", page_icon="VxS_logo.png", layout="wide")
+st.set_page_config(
+    page_title="Valentina por Siempre",
+    page_icon="VxS_logo.png",
+    layout="wide"
+)
+st.title("💛 Valentina por Siempre")
 
 import pandas as pd
 from datetime import date, datetime
